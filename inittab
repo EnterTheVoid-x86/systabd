@@ -1,0 +1,106 @@
+#!/bin/bash
+
+# systabd, v1.0
+# a bash script for disabling gettys on ttys
+# and replacing them with other programs/scripts.
+
+: ${2?"Usage: $0 tty_to_replace replacement_script"}
+
+# check for root
+
+if [ ! "$EUID" == "0" ]; then
+    echo "Run as root"
+fi
+
+# check if systemd
+if [ ! "$(pidof systemd)" ]; then
+    echo "Your init system isn't systemd..."
+    echo "Why are you even trying?"
+    exit 1
+fi
+
+# check if trying to replace invalid tty
+
+if [ "$1" == "tty6" ]; then
+    echo "tty_to_replace cannot be tty6."
+    echo "This is because tty6 is reserved for X server logs."
+    echo "Please try again using a different tty."
+    exit 1
+fi
+
+if [ "$1" == "tty7" ]; then
+    echo "tty_to_replace cannot be tty7."
+    echo "This is because tty7 is reserved for X servers."
+    echo "Please try again using a different tty."
+    exit 1
+fi
+
+# check if replacement script exists
+
+if ! command -v $2 &> /dev/null; then
+    echo "Your script isn't in your PATH variable or doesn't exist, exiting..."
+    exit 1
+fi
+
+# main
+
+echo "Here is the systemd service we will create..."
+
+cat <<EOF
+[Unit]
+Description=Replace $1 getty with $2
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+ExecStart=$(which $2)
+StandardInput=tty
+StandardOutput=tty
+TTYPath=/dev/$1
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo "Press any key to continue..."
+
+read -s -n 1
+
+echo "Creating service."
+
+cat <<EOF > "/lib/systemd/system/$1.$2.service"
+[Unit]
+Description=Replace $1 getty with $2
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+ExecStart=$(which $2)
+StandardInput=tty
+StandardOutput=tty
+TTYPath=/dev/$1
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo "disabling getty on $1"
+
+systemctl disable getty@$1
+systemctl stop getty@$1
+
+# Extra job for debian-based distros
+
+CHECK_DEBIAN=/lib/systemd/system/getty.target.wants/getty-static.service
+if test -f "$CHECK_DEBIAN"; then
+    echo "Running extra job for debian-based distros..."
+    sed -i "/getty@$1.service/d" $CHECK_DEBIAN
+fi
+
+echo "Enabling new service..."
+
+systemctl enable $1.$2
+
+echo "All jobs completed, please reboot."
