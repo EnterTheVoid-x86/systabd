@@ -4,7 +4,7 @@ Systabd is a bash script that allows you to replace getty with another program/s
 ## Install
 Download the repo with git clone, and install:
 
-``./install``
+``cd src && ./install``
 
 ## Usage
 
