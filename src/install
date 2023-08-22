@@ -5,4 +5,4 @@ echo "installing..."
 sudo cp inittab /usr/bin/inittab
 sudo chmod +x /usr/bin/inittab
 
-echo "done'
+echo "done"
